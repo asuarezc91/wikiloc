@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1,user-scalable=no" />
+    <title>Mediterranean Corridor</title>
+    <link rel="stylesheet" href="https://js.arcgis.com/3.30/dijit/themes/claro/claro.css">
+    <link rel="stylesheet" href="https://js.arcgis.com/3.30/esri/css/esri.css">
+    <script>var dojoConfig = { parseOnLoad: true };</script>
+    <script src="https://js.arcgis.com/3.30/"></script>
+    <style>
+        html,
+        body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        label {
+            font-family: arial;
+            color: white;
+            font-size: 14px;
+            display: block;
+            padding-bottom: 5px;
+        }
+
+        select {
+            display: block;
+        }
+
+        #info {
+            min-height: 100px;
+            min-width: 200px;
+            right: 5px;
+            top: 5px;
+            margin: 5px;
+            padding: 10px;
+            position: absolute;
+            width: 10%;
+            z-index: 40;
+            border: solid 2px #666;
+            border-radius: 4px;
+            background-color: #666;
+            display: flex;
+            justify-content: space-evenly;
+            flex-direction: column;
+        }
+
+        #unitsSelect {
+            text-align-last: center;
+            background-color: #808080;
+            color: white;
+            height: 24px;
+            border-radius: 4px;
+        }
+
+        #Polyline {
+            background-color: #808080;
+            border: none;
+            color: white;
+            padding: 5px 12px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        #map {
+            padding: 0px;
+        }
+    </style>
+
+    <script>
+        require([
+            "esri/map",
+            "esri/toolbars/draw",
+            "esri/symbols/SimpleLineSymbol",
+            "esri/symbols/CartographicLineSymbol",
+            "esri/graphic",
+            "esri/units",
+            "esri/dijit/ElevationProfile",
+            "esri/layers/FeatureLayer",
+            "esri/Color",
+            "esri/tasks/query",
+            "dojo/dom",
+            "dojo/on",
+            "dojo/domReady!"
+        ], function (
+            Map,
+            Draw,
+            SimpleLineSymbol,
+            CartographicLineSymbol,
+            Graphic,
+            Units,
+            ElevationsProfileWidget,
+            FeatureLayer,
+            Color,
+            Query,
+            dom,
+            on
+        ) {
+
+
+            var url = "https://services7.arcgis.com/ZJyugJxqkg4Qiu6z/arcgis/rest/services/mediteranean_corridor/FeatureServer/0";
+
+            var Layer = new FeatureLayer(url);
+
+            var tb, epWidget, lineSymbol;
+            var map = new Map("map", {
+                basemap: "dark-gray",
+                center: [-5.9, 37.3],
+                zoom: 6
+            });
+
+            map.addLayer(Layer);
+
+            map.on("load", init);
+
+            async function init() {
+
+                var eleList = ["Polyline"];
+                for (var ele in eleList) {
+                    on(dom.byId(eleList[ele]), "click", function (evt) {
+                        initToolbar(evt.target.id.toLowerCase());
+                    });
+                }
+
+                on(dom.byId("unitsSelect"), "change", function (evt) {
+                    if (epWidget) {
+                        epWidget.set("measureUnits", evt.target.options[evt.target.selectedIndex].value);
+                    }
+                })
+
+                lineSymbol = new CartographicLineSymbol(
+                    CartographicLineSymbol.STYLE_SOLID,
+                    new Color([255, 0, 0]), 2,
+                    CartographicLineSymbol.CAP_ROUND,
+                    CartographicLineSymbol.JOIN_MITER, 2
+                );
+
+                var chartOptions = {
+                    titleFontColor: "#ffffff",
+                    axisFontColor: "#ffffff",
+                    sourceTextColor: "white",
+                    busyIndicatorBackgroundColor: "#666"
+                };
+
+                var profileParams = {
+                    map: map,
+                    chartOptions: chartOptions,
+                    profileTaskUrl: "https://elevation.arcgis.com/arcgis/rest/services/Tools/ElevationSync/GPServer",
+                    scalebarUnits: Units.MILES
+                };
+
+                epWidget = new ElevationsProfileWidget(profileParams, dom.byId("profileChartNode"));
+                epWidget.startup();
+            }
+
+            function initToolbar(toolName) {
+                epWidget.clearProfile();
+
+                map.graphics.clear();
+                var query = new Query();
+                query.where = "1=1";
+
+                Layer.queryFeatures(query, function (result) {
+                    var features = result.features[0];
+                    var geometry = features.geometry;
+                    epWidget.set("profileGeometry", geometry);
+                    var sel = dom.byId("unitsSelect");
+                    if (sel) {
+                        var val = sel.options[sel.selectedIndex].value;
+                        console.log(val);
+                        epWidget.set("measureUnits", val);
+                    }
+                });
+                map.disableMapNavigation();
+            }
+        })
+    </script>
+
+</head>
+
+<body class="claro">
+    <div id="info">
+        <label id="Seleccionar">Seleccionar unidad de medida:</label>
+        <select id="unitsSelect">
+            <option value="esriMeters">Metros</option>
+            <option value="esriKilometers">Kilómetros</option>
+            <option value="esriMiles">Millas</option>
+        </select>
+        <button class="button" id="Polyline" type="button">Iniciar</button>
+    </div>
+    <div id="mainContainer" data-dojo-type="dijit/layout/BorderContainer"
+        data-dojo-props="design:'headline', gutters:true" style="width:100%;height:100%">
+        <div id="map" data-dojo-type="dijit/layout/ContentPane" data-dojo-props="region:'center'" style="height:100%">
+        </div>
+        <div data-dojo-type="dijit/layout/ContentPane" data-dojo-props="region:'bottom'"
+            style="background-color: #666;">
+            <div id="profileChartNode"></div>
+        </div>
+    </div>
+</body>
+
+</html>
